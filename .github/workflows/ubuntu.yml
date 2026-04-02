@@ -1,86 +1,55 @@
-name: Every 6 Hours Auto Dev Folder + Tunnel (No Data Loss)
+name: VPS
 
 on:
-  schedule:
-    - cron: '0 */6 * * *'
-  push:
-    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  dev-folder:
+  vps:
     runs-on: ubuntu-latest
+    timeout-minutes: 360
 
     steps:
-      - uses: actions/checkout@v4
 
-      # ==================== AUTO RESTORE Dev Folder ====================
-      - name: Download Previous Dev Folder Backup
+      - name: Restore Backup
         uses: actions/download-artifact@v4
         with:
-          name: dev-folder-backup
-          path: ./old-dev
+          name: vps-backup
+          path: restore
         continue-on-error: true
 
-      - name: Restore Dev Folder
+      - name: Extract Backup
         run: |
-          echo "🔄 Restoring your 'dev' folder..."
-          mkdir -p dev
-          if [ -f old-dev/dev-folder.tar.gz ]; then
-            tar -xzf old-dev/dev-folder.tar.gz -C dev
-            echo "✅ Dev folder restored successfully!"
+          if [ -f restore/backup.tar.gz ]; then
+            echo "Restoring VPS data..."
+            tar -xzf restore/backup.tar.gz -C /
           else
-            echo "First time - creating fresh 'dev' folder"
+            echo "No backup found"
           fi
 
-      # ==================== BACKUP Dev Folder ====================
-      - name: Backup Dev Folder
+      - name: Start VPS SSH
         run: |
-          echo "📦 Backing up your 'dev' folder..."
-          tar -czf dev-folder.tar.gz dev/
+          curl -sSf https://sshx.io/get | sh -s run &
 
-      - name: Save Backup for Next Run
+      - name: Auto Backup Loop
+        run: |
+          while true
+          do
+            sleep 600
+            echo "Creating backup..."
+
+            sudo tar \
+            --exclude=/proc \
+            --exclude=/sys \
+            --exclude=/dev \
+            --exclude=/run \
+            --exclude=/tmp \
+            -czf backup.tar.gz /home
+
+          done
+
+      - name: Upload Backup
         uses: actions/upload-artifact@v4
         with:
-          name: dev-folder-backup
-          path: dev-folder.tar.gz
+          name: vps-backup
+          path: backup.tar.gz
           retention-days: 7
-
-      # ==================== START TUNNEL WITH DEV FOLDER ====================
-     
-              - name: Start sshx Tunnel + Dev Folder Ready
-        run: |
-          echo "🚀 Starting sshx tunnel with 'dev' folder..."
-
-          # Tunnel start karo aur output ko properly capture karo
-          curl -sSf https://sshx.io/get | sh -s run > tunnel.log 2>&1 &
-          TUNNEL_PID=$!
-
-          echo "Waiting for tunnel to be ready..."
-          sleep 15   # thoda zyada wait kiya taaki URL print ho jaaye
-
-          # Better way to extract full tunnel URL
-          TUNNEL_URL=$(grep -o 'https://sshx.io/[a-zA-Z0-9]\+' tunnel.log | head -1)
-
-          if [ -z "$TUNNEL_URL" ]; then
-            TUNNEL_URL="https://sshx.io/s"   # fallback
-            echo "Warning: Could not detect full URL, using fallback"
-          fi
-
-          echo "========================================"
-          echo "✅ TUNNEL READY: $TUNNEL_URL"
-          echo ""
-          echo "🔥 DEV FOLDER READY 🔥"
-          echo "Connect karne ke baad yeh commands chala:"
-          echo "   cd dev"
-          echo "   ls"
-          echo ""
-          echo "Jo bhi files tu 'dev' folder mein banayega ya save karega"
-          echo "woh agle 6 ghante ke naye tunnel mein bhi aa jayega!"
-          echo "Data loss kabhi nahi hoga ❤️"
-          echo ""
-          echo "Next auto run: 6 hours baad"
-          echo "========================================"
-
-          # Tunnel ko background mein chalne do
-          echo "Tunnel is now running in background (PID: $TUNNEL_PID)"
