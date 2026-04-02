@@ -47,28 +47,40 @@ jobs:
           retention-days: 7
 
       # ==================== START TUNNEL WITH DEV FOLDER ====================
-      - name: Start sshx Tunnel + Dev Folder Ready
+     
+              - name: Start sshx Tunnel + Dev Folder Ready
         run: |
           echo "🚀 Starting sshx tunnel with 'dev' folder..."
 
+          # Tunnel start karo aur output ko properly capture karo
           curl -sSf https://sshx.io/get | sh -s run > tunnel.log 2>&1 &
-          sleep 12
+          TUNNEL_PID=$!
 
-          TUNNEL_URL=$(grep -o 'https://sshx.io/[a-zA-Z0-9]*' tunnel.log | head -1 || echo "Tunnel starting...")
+          echo "Waiting for tunnel to be ready..."
+          sleep 15   # thoda zyada wait kiya taaki URL print ho jaaye
+
+          # Better way to extract full tunnel URL
+          TUNNEL_URL=$(grep -o 'https://sshx.io/[a-zA-Z0-9]\+' tunnel.log | head -1)
+
+          if [ -z "$TUNNEL_URL" ]; then
+            TUNNEL_URL="https://sshx.io/s"   # fallback
+            echo "Warning: Could not detect full URL, using fallback"
+          fi
 
           echo "========================================"
           echo "✅ TUNNEL READY: $TUNNEL_URL"
           echo ""
           echo "🔥 DEV FOLDER READY 🔥"
-          echo "Jaise hi tu tunnel mein connect karega, yeh commands chala:"
+          echo "Connect karne ke baad yeh commands chala:"
           echo "   cd dev"
-          echo "   ls          # dekh teri saari files yahan hongi"
+          echo "   ls"
           echo ""
-          echo "Ab jo bhi tu 'dev' folder ke andar banayega, edit karega ya save karega"
-          echo "woh agle 6 ghante ke naye tunnel mein bhi automatically restore ho jayega!"
+          echo "Jo bhi files tu 'dev' folder mein banayega ya save karega"
+          echo "woh agle 6 ghante ke naye tunnel mein bhi aa jayega!"
           echo "Data loss kabhi nahi hoga ❤️"
           echo ""
-          echo "Next automatic run: 6 hours baad"
+          echo "Next auto run: 6 hours baad"
           echo "========================================"
 
-          echo "Tunnel running in background..."
+          # Tunnel ko background mein chalne do
+          echo "Tunnel is now running in background (PID: $TUNNEL_PID)"
